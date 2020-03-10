@@ -1,139 +1,131 @@
-var JSBloom = {};
+'use strict';
 
-JSBloom.filter = function (items, target_prob) {
-
-    if (typeof items !== "number" || typeof target_prob !== "number" || target_prob >= 1) {
-        throw Error("Usage: new JSBloom.filter(items, target_probability)");
-    };
-
-    var BUFFER_LEN = (function () {
-        var buffer = Math.ceil((items * Math.log(target_prob)) / Math.log(1.0 / (Math.pow(2.0, Math.log(2.0)))));
-
-        if ((buffer % 8) !== 0) {
-            buffer += 8 - (buffer % 8);
+class JSBloom {
+    constructor(items, target_prob) {
+        if (typeof items !== "number"
+            || typeof target_prob !== "number"
+            || target_prob >= 1)
+        {
+            throw Error("Usage: new JSBloom(items, target_probability)");
         };
 
-        return buffer;
-    })(),
-        HASH_ROUNDS = Math.round(Math.log(2.0) * BUFFER_LEN / items),
-        bVector = new Uint8Array(BUFFER_LEN / 8),
+        this.BUFFER_LEN = ( () => {
+            let buffer = Math.ceil((items * Math.log(target_prob)) / Math.log(1.0 / (Math.pow(2.0, Math.log(2.0)))));
 
-        hashes = {
-            djb2: function (str) {
-                var hash = 5381;
+            if ((buffer % 8) !== 0) {
+                buffer += 8 - (buffer % 8);
+            };
 
-                for (var len = str.length, count = 0; count < len; count++) {
-                    hash = hash * 33 ^ str.charCodeAt(count);
-                };
+            return buffer;
+        })();
 
-                return (hash >>> 0) % BUFFER_LEN;
+        this.HASH_ROUNDS = Math.round(Math.log(2.0) * this.BUFFER_LEN / items);
+        this.bVector = new Uint8Array(this.BUFFER_LEN / 8);
+
+        this.hashes = {
+            djb2: (str) => {
+                let hash = 5381;
+                [...str].forEach( (_, idx) => hash = hash * 33 ^ str.charCodeAt(idx));
+
+                return (hash >>> 0) % this.BUFFER_LEN;
             },
-            sdbm: function (str) {
-                var hash = 0;
+            sdbm: (str) => {
+                let hash = 0;
+                [...str].forEach( (_, idx) => hash = str.charCodeAt(idx) + (hash << 6) + (hash << 16) - hash);
 
-                for (var len = str.length, count = 0; count < len; count++) {
-                    hash = str.charCodeAt(count) + (hash << 6) + (hash << 16) - hash;
-                };
-
-                return (hash >>> 0) % BUFFER_LEN;
+                return (hash >>> 0) % this.BUFFER_LEN;
             }
-        },
+        }
 
-        addEntry = function (str) {
-            var h1 = hashes.djb2(str)
-            var h2 = hashes.sdbm(str)
-            var added = false
-            for (var round = 0; round <= HASH_ROUNDS; round++) {
-                var new_hash = round == 0 ? h1
-                    : round == 1 ? h2
-                        : (h1 + (round * h2) + (round ^ 2)) % BUFFER_LEN;
+        return {
+            info: {
+                type: "regular",
+                buffer: this.BUFFER_LEN,
+                hashes: this.HASH_ROUNDS,
+                raw_buffer: this.bVector
+            },
+            hashes: this.hashes,
+            addEntry: this.addEntry,
+            addEntries: this.addEntries,
+            checkEntry: this.checkEntry,
+            importData: this.importData,
+            exportData: this.exportData
+        }
+    }
 
-                var extra_indices = new_hash % 8,
-                    index = ((new_hash - extra_indices) / 8);
+    addEntry = str => {
+        const h1 = this.hashes.djb2(str);
+        const h2 = this.hashes.sdbm(str);
+        let added = false;
 
-                if (extra_indices != 0 && (bVector[index] & (128 >> (extra_indices - 1))) == 0) {
-                    bVector[index] ^= (128 >> extra_indices - 1);
-                    added = true;
-                } else if (extra_indices == 0 && (bVector[index] & 1) == 0) {
-                    bVector[index] ^= 1;
-                    added = true;
-                }
+        for (let round = 0; round <= this.HASH_ROUNDS; round++) {
+            let new_hash = round == 0 ? h1
+                : round == 1 ? h2
+                : (h1 + (round * h2) + (round ^ 2)) % this.BUFFER_LEN;
 
-            };
+            let extra_indices = new_hash % 8;
+            let index = ((new_hash - extra_indices) / 8);
 
-            return added;
-        },
-
-        addEntries = function (arr) {
-            for (var i = arr.length - 1; i >= 0; i--) {
-                addEntry(arr[i]);
-            };
-
-            return true;
-        },
-
-        checkEntry = function (str) {
-            var index, extra_indices
-            var h1 = hashes.djb2(str)
-
-            extra_indices = h1 % 8;
-            index = ((h1 - extra_indices) / 8);
-
-            if (extra_indices != 0 && (bVector[index] & (128 >> (extra_indices - 1))) == 0) {
-                return false;
-            } else if (extra_indices == 0 && (bVector[index] & 1) == 0) {
-                return false;
+            if (extra_indices != 0 && (this.bVector[index] & (128 >> (extra_indices - 1))) == 0) {
+                this.bVector[index] ^= (128 >> extra_indices - 1);
+                added = true;
+            } else if (extra_indices == 0 && (this.bVector[index] & 1) == 0) {
+                this.bVector[index] ^= 1;
+                added = true;
             }
 
-            var h2 = hashes.sdbm(str)
-            extra_indices = h2 % 8;
-            index = ((h2 - extra_indices) / 8);
-
-            if (extra_indices != 0 && (bVector[index] & (128 >> (extra_indices - 1))) == 0) {
-                return false;
-            } else if (extra_indices == 0 && (bVector[index] & 1) == 0) {
-                return false;
-            }
-
-            for (var round = 2; round <= HASH_ROUNDS; round++) {
-                var new_hash = round == 0 ? h1 : round == 1 ? h2 : (h1 + (round * h2) + (round ^ 2)) % BUFFER_LEN;
-                var extra_indices = new_hash % 8,
-                    index = ((new_hash - extra_indices) / 8);
-
-                if (extra_indices != 0 && (bVector[index] & (128 >> (extra_indices - 1))) == 0) {
-                    return false;
-                } else if (extra_indices == 0 && (bVector[index] & 1) == 0) {
-                    return false;
-                }
-            };
-
-            return true;
-        },
-
-        importData = function (data) {
-            bVector = data
-        },
-
-        exportData = function () {
-            return bVector
         };
 
-    return {
-        info: {
-            type: "regular",
-            buffer: BUFFER_LEN,
-            hashes: HASH_ROUNDS,
-            raw_buffer: bVector
-        },
-        hashes: hashes,
-        addEntry: addEntry,
-        addEntries: addEntries,
-        checkEntry: checkEntry,
-        importData: importData,
-        exportData: exportData
-    };
-};
+        return added;
+    }
 
-if (typeof exports !== "undefined") {
-    exports.filter = JSBloom.filter;
-};
+    addEntries = arr => {
+        if (!Array.isArray(arr)) {
+            throw Error("Usage: <obj>.addEntries([val1, val2, ...rest])");
+        }
+        arr.forEach( (_, idx, theArr) => addEntry(theArr.length - 1 - idx ) );
+        return true;
+    }
+
+    checkEntry = str => {
+        const h1 = this.hashes.djb2(str);
+        let extra_indices = h1 % 8;
+        let index = ((h1 - extra_indices) / 8);
+
+        if (extra_indices != 0 && (this.bVector[index] & (128 >> (extra_indices - 1))) == 0) {
+            return false;
+        } else if (extra_indices == 0 && (this.bVector[index] & 1) == 0) {
+            return false;
+        }
+
+        const h2 = this.hashes.sdbm(str);
+        extra_indices = h2 % 8;
+        index = ((h2 - extra_indices) / 8);
+
+        if (extra_indices != 0 && (this.bVector[index] & (128 >> (extra_indices - 1))) == 0) {
+            return false;
+        } else if (extra_indices == 0 && (this.bVector[index] & 1) == 0) {
+            return false;
+        }
+
+        for (let round = 2; round <= this.HASH_ROUNDS; round++) {
+            const new_hash = round == 0 ? h1 : round == 1 ? h2 : (h1 + (round * h2) + (round ^ 2)) % this.BUFFER_LEN;
+            const extra_indices = new_hash % 8;
+            const index = ((new_hash - extra_indices) / 8);
+
+            if (extra_indices != 0 && (this.bVector[index] & (128 >> (extra_indices - 1))) == 0) {
+                return false;
+            } else if (extra_indices == 0 && (this.bVector[index] & 1) == 0) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    importData = data => this.bVector = data;
+
+    exportData = () => this.bVector;
+}
+
+exports.BloomFilter = JSBloom;
