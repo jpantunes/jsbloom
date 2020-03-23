@@ -9,16 +9,7 @@ class JSBloom {
             throw Error("Usage: new JSBloom(items, target_probability)");
         }
 
-        this.BUFFER_LEN = ( () => {
-            let buffer = Math.ceil((items * Math.log(target_prob)) / Math.log(1.0 / (Math.pow(2.0, Math.log(2.0)))));
-
-            if ((buffer % 8) !== 0) {
-                buffer += 8 - (buffer % 8);
-            }
-
-            return buffer;
-        })();
-
+        this.BUFFER_LEN = JSBloom.getBufferLen(items, target_prob);
         this.HASH_ROUNDS = Math.round(Math.log(2.0) * this.BUFFER_LEN / items);
         this.bVector = new Uint8Array(this.BUFFER_LEN / 8);
 
@@ -54,6 +45,14 @@ class JSBloom {
             exportData: this.exportData
         };
     };
+
+    static getBufferLen(items, target_prob) {
+        let bufferLen = Math.ceil((items * Math.log(target_prob)) / Math.log(1.0 / (Math.pow(2.0, Math.log(2.0)))));
+        if ((bufferLen % 8) !== 0) {
+            bufferLen += 8 - (bufferLen % 8);
+        }
+        return bufferLen;
+    }
 
     addEntry = str => {
         if (typeof str !== 'string' ) {

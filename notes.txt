@@ -1,0 +1,18 @@
+> let JSBloom = require('./bloom.js')
+undefined
+> var filter = new JSBloom(40000, 0.000001)
+undefined
+> strGenerator = function () {return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx-xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) { var r = Math.random()*16|0, v = c == 'x' ? r : (r&0x3|0x8); return v.toString(16); }); }
+[Function: generator]
+> let strArr = []
+undefined
+> for (let i = 0; i < 40000; i++) { strArr.push(strGenerator()); }
+40000
+> strArr.forEach(e => filter.addEntry(e) )
+undefined
+> strArr.every(e => filter.checkEntry(e) )
+true
+> strArr.push('this is new')
+40001
+> strArr.every(e => filter.checkEntry(e) )
+false
