@@ -14,7 +14,7 @@
 const LZString = function() {
 
     // private property
-    const f = String.fromCharCode; //point-gree style function expression ie f = n => String.fromCharCode(n)
+    const f = String.fromCharCode; //point-free style function expression ie f = n => String.fromCharCode(n)
     const keyStrBase64 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=";
     const baseReverseDic = {};
 
@@ -120,7 +120,7 @@ const LZString = function() {
             delete context_dictionaryToCreate[context_w];
           } else {
             value = context_dictionary[context_w];
-            for (let i = 0; i < context_numBits ; i++) {
+            for (let i = 0; i < context_numBits; i++) {
               context_data_val = (context_data_val << 1) | (value & 1);
               if (context_data_position == bitsPerChar - 1) {
                 context_data_position = 0;
@@ -148,7 +148,7 @@ const LZString = function() {
       if (context_w !== "") {
         if (Object.prototype.hasOwnProperty.call(context_dictionaryToCreate,context_w)) {
           if (context_w.charCodeAt(0) < 256) {
-            for (let i = 0; i < context_numBits ; i++) {
+            for (let i = 0; i < context_numBits; i++) {
               context_data_val = (context_data_val << 1);
               if (context_data_position == bitsPerChar - 1) {
                 context_data_position = 0;
@@ -204,7 +204,7 @@ const LZString = function() {
           delete context_dictionaryToCreate[context_w];
         } else {
           value = context_dictionary[context_w];
-          for (let i = 0 ; i < context_numBits; i++) {
+          for (let i = 0; i < context_numBits; i++) {
             context_data_val = (context_data_val << 1) | (value & 1);
             if (context_data_position == bitsPerChar - 1) {
               context_data_position = 0;
